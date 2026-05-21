@@ -1,168 +1,232 @@
-/* Cookie Banner */
-const cookieBanner = document.getElementById('cookie-banner');
-if (cookieBanner && !localStorage.getItem('cookie-consent')) {
-    cookieBanner.hidden = false;
-}
+﻿/* ================================
+   HEX ACHTERGROND MET DIEPTE
+   ================================ */
+(function () {
+    var NS = 'http://www.w3.org/2000/svg';
 
-document.getElementById('cookie-accept')?.addEventListener('click', function () {
-    localStorage.setItem('cookie-consent', 'accepted');
-    cookieBanner.hidden = true;
-});
+    function buildHexGrid() {
+        var container = document.createElement('div');
+        container.className = 'hex-bg';
+        document.body.prepend(container);
 
-document.getElementById('cookie-decline')?.addEventListener('click', function () {
-    localStorage.setItem('cookie-consent', 'declined');
-    cookieBanner.hidden = true;
-});
+        var svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('aria-hidden', 'true');
+        container.appendChild(svg);
 
-/* Hamburger Menu */
-const hamburger = document.querySelector('.hamburger');
-const navMenu = document.querySelector('.nav-menu');
+        var defs = document.createElementNS(NS, 'defs');
+        defs.innerHTML =
+            '<radialGradient id="hv" cx="50%" cy="50%" r="68%">' +
+            '<stop offset="0%" stop-color="rgba(248,246,241,0)"/>' +
+            '<stop offset="100%" stop-color="rgba(248,246,241,0.6)"/>' +
+            '</radialGradient>';
+        svg.appendChild(defs);
 
-if (hamburger && navMenu) {
-    hamburger.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isOpen = navMenu.classList.toggle('open');
-        hamburger.classList.toggle('open', isOpen);
-        hamburger.setAttribute('aria-expanded', isOpen);
-    });
+        var g = document.createElementNS(NS, 'g');
+        svg.appendChild(g);
 
-    navMenu.querySelectorAll('a').forEach(link => {
-        link.addEventListener('click', () => {
-            navMenu.classList.remove('open');
-            hamburger.classList.remove('open');
-            hamburger.setAttribute('aria-expanded', false);
+        var vignette = document.createElementNS(NS, 'rect');
+        vignette.setAttribute('fill', 'url(#hv)');
+        vignette.setAttribute('pointer-events', 'none');
+        svg.appendChild(vignette);
+
+        function hexPoints(cx, cy, r) {
+            var pts = [];
+            for (var i = 0; i < 6; i++) {
+                var angle = i * Math.PI / 3;
+                pts.push([(cx + r * Math.cos(angle)).toFixed(2),
+                           (cy + r * Math.sin(angle)).toFixed(2)]);
+            }
+            return pts;
+        }
+
+        function draw() {
+            var W = window.innerWidth;
+            var H = window.innerHeight;
+            var R = 40;
+            var cw = R * 1.5;
+            var rh = R * Math.sqrt(3);
+
+            svg.setAttribute('width', W);
+            svg.setAttribute('height', H);
+            vignette.setAttribute('width', W);
+            vignette.setAttribute('height', H);
+
+            while (g.firstChild) g.removeChild(g.firstChild);
+
+            var cols = Math.ceil(W / cw) + 3;
+            var rows = Math.ceil(H / rh) + 3;
+
+            for (var col = -1; col < cols; col++) {
+                for (var row = -1; row < rows; row++) {
+                    var cx = col * cw;
+                    var cy = row * rh + (col % 2 !== 0 ? rh / 2 : 0);
+                    var v  = hexPoints(cx, cy, R);
+                    var allPts = v.map(function(p){ return p.join(','); }).join(' ');
+
+                    // Laag 1: subtiele groene fill
+                    var fill = document.createElementNS(NS, 'polygon');
+                    fill.setAttribute('points', allPts);
+                    fill.setAttribute('fill', 'rgba(28,51,40,0.03)');
+                    fill.setAttribute('stroke', 'none');
+                    g.appendChild(fill);
+
+                    // Laag 2: goud border
+                    var border = document.createElementNS(NS, 'polygon');
+                    border.setAttribute('points', allPts);
+                    border.setAttribute('fill', 'none');
+                    border.setAttribute('stroke', 'rgba(185,148,55,0.17)');
+                    border.setAttribute('stroke-width', '1');
+                    g.appendChild(border);
+
+                    // Laag 3: highlight (top-links: v3-v4-v5-v0)
+                    var hiPts = [v[3],v[4],v[5],v[0]].map(function(p){ return p.join(','); }).join(' ');
+                    var hi = document.createElementNS(NS, 'polyline');
+                    hi.setAttribute('points', hiPts);
+                    hi.setAttribute('fill', 'none');
+                    hi.setAttribute('stroke', 'rgba(255,255,255,0.13)');
+                    hi.setAttribute('stroke-width', '1.8');
+                    hi.setAttribute('stroke-linecap', 'round');
+                    g.appendChild(hi);
+
+                    // Laag 4: schaduw (rechts-onder: v0-v1-v2-v3)
+                    var shPts = [v[0],v[1],v[2],v[3]].map(function(p){ return p.join(','); }).join(' ');
+                    var sh = document.createElementNS(NS, 'polyline');
+                    sh.setAttribute('points', shPts);
+                    sh.setAttribute('fill', 'none');
+                    sh.setAttribute('stroke', 'rgba(0,0,0,0.07)');
+                    sh.setAttribute('stroke-width', '1.8');
+                    sh.setAttribute('stroke-linecap', 'round');
+                    g.appendChild(sh);
+                }
+            }
+        }
+
+        draw();
+
+        var timer;
+        window.addEventListener('resize', function () {
+            clearTimeout(timer);
+            timer = setTimeout(draw, 130);
         });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', buildHexGrid);
+    } else {
+        buildHexGrid();
+    }
+})();
+
+/* ================================
+   COOKIE BANNER
+   ================================ */
+(function () {
+    var banner = document.getElementById('cookie-banner');
+    if (!banner) return;
+
+    if (localStorage.getItem('cookieAccepted')) {
+        banner.remove();
+        return;
+    }
+    banner.removeAttribute('hidden');
+
+    var acceptBtn = document.getElementById('cookie-accept');
+    var declineBtn = document.getElementById('cookie-decline');
+
+    if (acceptBtn) {
+        acceptBtn.addEventListener('click', function () {
+            localStorage.setItem('cookieAccepted', '1');
+            banner.remove();
+        });
+    }
+    if (declineBtn) {
+        declineBtn.addEventListener('click', function () {
+            banner.remove();
+        });
+    }
+})();
+
+/* ================================
+   HAMBURGER MENU
+   ================================ */
+(function () {
+    var btn  = document.querySelector('.hamburger');
+    var menu = document.querySelector('.nav-menu');
+    if (!btn || !menu) return;
+
+    btn.addEventListener('click', function () {
+        var isOpen = menu.classList.toggle('open');
+        btn.classList.toggle('open', isOpen);
+        btn.setAttribute('aria-expanded', isOpen);
     });
 
-    document.addEventListener('click', () => {
-        navMenu.classList.remove('open');
-        hamburger.classList.remove('open');
-        hamburger.setAttribute('aria-expanded', false);
+    document.addEventListener('click', function (e) {
+        if (!btn.contains(e.target) && !menu.contains(e.target)) {
+            menu.classList.remove('open');
+            btn.classList.remove('open');
+            btn.setAttribute('aria-expanded', 'false');
+        }
     });
-}
+})();
 
-/* Contact Formulier */
-const contactForm = document.getElementById('contact-form');
-if (contactForm) {
-    contactForm.addEventListener('submit', function (e) {
+/* ================================
+   SCROLL CARDS ANIMATIE
+   ================================ */
+(function () {
+    var items = document.querySelectorAll('.item');
+    if (!items.length) return;
+
+    if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    io.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.12 });
+        items.forEach(function (el) { io.observe(el); });
+    } else {
+        items.forEach(function (el) { el.classList.add('visible'); });
+    }
+})();
+
+/* ================================
+   CONTACT FORMULIER -> WHATSAPP
+   ================================ */
+(function () {
+    var form = document.getElementById('contact-form');
+    if (!form) return;
+
+    var errEl = document.getElementById('form-error');
+    var okEl  = document.getElementById('form-success');
+
+    form.addEventListener('submit', function (e) {
         e.preventDefault();
 
-        const naam      = document.getElementById('cf-naam');
-        const email     = document.getElementById('cf-email');
-        const bericht   = document.getElementById('cf-bericht');
-        const telefoon  = document.getElementById('cf-telefoon');
-        const dienst    = document.getElementById('cf-dienst');
-        const errorEl   = document.getElementById('form-error');
-        const successEl = document.getElementById('form-success');
+        var naam    = form.querySelector('[name="naam"]').value.trim();
+        var email   = form.querySelector('[name="email"]').value.trim();
+        var bericht = form.querySelector('[name="bericht"]').value.trim();
+        var telefoon= form.querySelector('[name="telefoon"]').value.trim();
+        var dienst  = form.querySelector('[name="dienst"]').value;
 
-        // Reset vorige fouten
-        errorEl.hidden = true;
-        successEl.hidden = true;
-        [naam, email, bericht].forEach(el => el.classList.remove('field-error'));
-
-        // Validatie
-        let valid = true;
-        if (!naam.value.trim())                          { naam.classList.add('field-error');    valid = false; }
-        if (!email.value.trim() || !email.value.includes('@')) { email.classList.add('field-error');   valid = false; }
-        if (!bericht.value.trim())                       { bericht.classList.add('field-error'); valid = false; }
-
-        if (!valid) {
-            errorEl.hidden = false;
-            errorEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (!naam || !email || !bericht) {
+            if (errEl) errEl.removeAttribute('hidden');
+            if (okEl)  okEl.setAttribute('hidden', '');
             return;
         }
 
-        // Mailto bouwen
-        const dienstWaarde = dienst && dienst.value ? dienst.value : '–';
-        const onderwerp = 'Contactformulier' + (dienstWaarde !== '–' ? ' – ' + dienstWaarde : '') + ' via rickuwhovenier.nl';
-        const body =
-            'Naam: '     + naam.value.trim()     + '\r\n' +
-            'Telefoon: ' + (telefoon && telefoon.value.trim() ? telefoon.value.trim() : '–') + '\r\n' +
-            'E-mail: '   + email.value.trim()    + '\r\n' +
-            'Dienst: '   + dienstWaarde          + '\r\n\r\n' +
-            'Bericht:\r\n' + bericht.value.trim();
+        if (errEl) errEl.setAttribute('hidden', '');
+        if (okEl)  okEl.removeAttribute('hidden');
 
-        window.location.href =
-            'mailto:info@rickuwhovenier.nl' +
-            '?subject=' + encodeURIComponent(onderwerp) +
-            '&body='    + encodeURIComponent(body);
+        var msg = 'Hallo Rick! Ik stuur dit via de website.\n\n' +
+                  'Naam: '     + naam     + '\n' +
+                  'E-mail: '   + email    + '\n' +
+                  'Telefoon: ' + telefoon + '\n' +
+                  'Dienst: '   + dienst   + '\n\n' +
+                  'Bericht: '  + bericht;
 
-        // Bevestiging tonen en formulier resetten
-        successEl.hidden = false;
-        contactForm.reset();
-        successEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        window.open('https://wa.me/31627320547?text=' + encodeURIComponent(msg), '_blank');
+        form.reset();
     });
-}
-document.addEventListener('DOMContentLoaded', () => {
-    const images = document.querySelectorAll('.portfolio-img');
-    
-    images.forEach(img => {
-        img.onerror = function() {
-            // Logt een duidelijke fout als de map 'img' niet klopt
-            console.error("Fout: Kan " + this.src + " niet vinden. Check of de map 'img' bestaat.");
-        };
-    });
-});
-/* Mentor focus: Controle op de nieuwe afbeelding */
-document.addEventListener('DOMContentLoaded', () => {
-    const aanplantImg = document.querySelector('img[src*="aanbeplanting"]');
-    
-    if (aanplantImg) {
-        aanplantImg.onerror = function() {
-            console.error("Fout: aanplanten.webp niet gevonden in de map 'img'.");
-        };
-    }
-});
-// Mentor check: Controleren of links en grid werken
-document.addEventListener('DOMContentLoaded', () => {
-    const portfolioGrid = document.querySelector('.grid-3');
-    
-    if (portfolioGrid) {
-        const style = window.getComputedStyle(portfolioGrid);
-        if (style.display !== 'grid') {
-            console.error("Layout-fout: Grid staat niet aan. Check je CSS bestand.");
-        } else {
-            console.log("Portfolio grid is actief en kaarten staan naast elkaar.");
-        }
-    }
-});
-// Mentor check: Functionaliteit voor mail-koppeling
-document.addEventListener('DOMContentLoaded', () => {
-    const mailBtn = document.getElementById('mail-button');
-    const select = document.getElementById('dienst-select');
-    const emailAdres = "info@rickuwhovenier.nl";
-
-    mailBtn.addEventListener('click', () => {
-        const gekozenDienst = select.value;
-        const subject = encodeURIComponent("Offerte aanvraag voor: " + gekozenDienst);
-        const body = encodeURIComponent("Beste Rick,\n\nIk ontvang graag een offerte voor " + gekozenDienst + ".\n\nMet vriendelijke groet,");
-        
-        // Opent het mailprogramma van de klant
-        window.location.href = `mailto:${emailAdres}?subject=${subject}&body=${body}`;
-    });
-
-    console.log("Offerte systeem met mail-koppeling actief.");
-});
-// Mentor check: Validatie van de zwevende knop
-document.addEventListener('DOMContentLoaded', () => {
-    const waButton = document.querySelector('.whatsapp-floating');
-    
-    if (waButton) {
-        console.log("WhatsApp floating button is actief op de pagina.");
-    }
-
-    // Mail functionaliteit behouden
-    const mailBtn = document.getElementById('mail-button');
-    if (mailBtn) {
-        mailBtn.addEventListener('click', () => {
-            const select = document.getElementById('dienst-select');
-            const gekozenDienst = select.value;
-            const emailAdres = "info@rickuwhovenier.nl";
-            
-            const subject = encodeURIComponent("Offerte aanvraag: " + gekozenDienst);
-            const body = encodeURIComponent("Hoi Rick, ik wil graag een offerte voor " + gekozenDienst + ".");
-            
-            window.location.href = `mailto:${emailAdres}?subject=${subject}&body=${body}`;
-        });
-    }
-});
+})();
